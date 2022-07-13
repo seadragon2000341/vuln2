@@ -1,264 +1,180 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <signal.h>
 
-#define BANNER "NameCard Printing Service v0.1"
-#define CAPACITY 128
+#define NAME_MAX_LENGTH 16
+#define COMMAND_MAX_LENGTH 64
 
-void ezflag()
-{
-    system("cat ./flag.txt");
+void setup();
+
+struct Info {
+    char  logger[COMMAND_MAX_LENGTH];
+    int   total_count;
+    float total_bmi;
+};
+
+struct Person {
+    char name[NAME_MAX_LENGTH];
+    int  age;
+    int  gender;
+    int  height;
+    int  weight;
+};
+
+struct App {
+    struct Person *list;
+    struct Person selected;
+    struct Info   stats;
+} app;
+
+char *read_str() {
+    char *buffer = malloc(20);
+    fflush(stdout);
+    read(0, buffer, 20);
+    return buffer;
 }
 
-typedef struct person
-{
-    char name[24];
-    int id;
-    int age;
-    int personal_num;
-    int business_num;
-} person;
-
-typedef struct org
-{
-    char name[24];
-    int id;
-    void (*display)(struct org*, struct person*);
-} org;
-
-person* persons[CAPACITY];
-org* orgs[CAPACITY];
-
-void display1(org* org, person *person)
-{
-    puts("-------------------------------------");
-    printf("*** Org:  %-8s  %d ***\n", org->name, org->id);
-    printf("--- Name: %s\n", person->name);
-    printf("--- ID:   %d\n", person->id);
-    printf("--- Age:  %d\n", person->age);
-    printf("--- Personal Contact:  %d\n", person->personal_num);
-    printf("--- Business Contact:  %d\n", person->business_num);
-    puts("-------------------------------------");
+int read_int() {
+    char *choice = read_str();
+    return atoi(choice);
 }
 
-void display2(org* org, person *person)
-{
-    puts("-------------------------------------");
-    printf("=== Org:  %-8s  %d ===\n", org->name, org->id);
-    printf("+++ Name: %s\n", person->name);
-    printf("+++ ID:   %d\n", person->id);
-    printf("+++ Age:  %d\n", person->age);
-    printf("+++ Personal Contact:  %d\n", person->personal_num);
-    printf("+++ Business Contact:  %d\n", person->business_num);
-    puts("-------------------------------------");
+void show_menu() {
+    printf("\nI've made this application to store people's basic info, including height and weight.\n");
+    printf("You can also calculate their BMI!!!\n");
+    printf("Don't mind if I log down some statistics for research purposes?\n");
+    printf("Just seeing the number of BMI scores and the average BMI calculated\n\n");
+
+    printf("NOTE: please report any bugs to me!\n\n");
+
+    printf("=======================\n");
+    printf(" 1. Add person\n");
+    printf(" 2. Delete person\n");
+    printf(" 3. Calculate BMI\n");
+    printf(" 4. Exit\n");
+    printf("=======================\n");
 }
 
-void display3(org* org, person *person)
-{
-    puts("-------------------------------------");
-    printf("### Org:  %-8s  %d ###\n", org->name, org->id);
-    printf(">>> Name: %s\n", person->name);
-    printf(">>> ID:   %d\n", person->id);
-    printf(">>> Age:  %d\n", person->age);
-    printf(">>> Personal Contact:  %d\n", person->personal_num);
-    printf(">>> Business Contact:  %d\n", person->business_num);
-    puts("-------------------------------------");
-}
-
-void usage()
-{
-    puts("---------------------");
-    puts("1. New person");
-    puts("2. New org");
-    puts("3. Delete org");
-    puts("4. Print name card");
-    puts("5. Exit");
-    puts("---------------------");
-}
-
-void prompt()
-{
-    printf("> ");
-}
-
-void readstr(char* dest, int len)
-{
-    fgets(dest, len, stdin);
-    if (dest[strlen(dest)-1] == '\n') dest[strlen(dest)-1] = 0;
-}
-
-int readint()
-{
-    char input[256]; fgets(input, 256, stdin);
-    if (input[0] == '\n') input[0] = ' ';
-    return strtol(input, 0, 10);
-}
-
-void new_person()
-{
-    person *res = (person*) malloc(sizeof(person));
-    // printf("res: %p\n", res);
-
-    while (1)
-    {
-        printf("ID (0-%d): ", CAPACITY-1);
-        res->id = readint();
-        if (res->id < 0 || res->id >= CAPACITY) puts("Invalid ID");
-        else if (persons[res->id] != 0)
-            printf("ID %d is already used by another person. Choose a different ID.\n", res->id);
-        else break;
+void select_person() {
+    printf("Index (0-19): ");
+    int index = read_int();
+    if (index < 0 || index > 19) {
+        printf("Aha! Doing something bad huh?");
+        return;
     }
 
-    printf("Name (max 23 chars): ");
-    readstr(res->name, 24);
+    struct Person *p = &app.list[index];
+
+    strcpy(app.selected.name, p->name);
+    app.selected.age = p->age;
+    app.selected.gender = p->gender;
+    app.selected.height = p->height;
+    app.selected.weight = p->weight;
+}
+
+void calculate_bmi() {
+    // Convert to float
+    float height = 1.0*app.selected.height/100.0;
+    float weight = 1.0*app.selected.weight;
+
+    float bmi = weight / (height * height);
+    printf(">> BMI of %s is %.2f\n", app.selected.name, bmi);
+
+    app.stats.total_count += 1;
+    app.stats.total_bmi += bmi;
+}
+
+void add_person() {
+    printf("Index (0-19): ");
+    int index = read_int();
+    if (index < 0 || index > 19) {
+        printf("Aha! Doing something bad huh?");
+        return;
+    }
+
+    printf("Name: ");
+    char *name = read_str();
+    strncpy((char *) app.list[index].name, name, NAME_MAX_LENGTH);  // Copy name over safely
 
     printf("Age: ");
-    res->age = readint();
+    app.list[index].age = read_int();
 
-    printf("Personal Contact Number: ");
-    res->personal_num = readint();
+    printf("Gender (female = 0, male = 1): ");
+    app.list[index].gender = read_int();
 
-    printf("Business Contact Number: ");
-    res->business_num = readint();
+    printf("Height: ");
+    app.list[index].height = read_int();
 
-    persons[res->id] = res;
+    printf("Weight: ");
+    app.list[index].weight = read_int();
 }
 
-void new_org()
-{
-    org *res = (org*) malloc(sizeof(org));
-    // printf("res: %p\n", res);
-
-    while (1)
-    {
-        printf("ID (0-%d): ", CAPACITY-1);
-        res->id = readint();
-        if (res->id < 0 || res->id >= CAPACITY) puts("Invalid ID");
-        else if (orgs[res->id] != 0)
-            printf("ID %d is already used by another org. Choose a different ID.\n", res->id);
-        else break;
+void delete_person() {
+    printf("Index (0-19): ");
+    int index = read_int();
+    if (index < 0 || index > 19) {
+        printf("Aha! Doing something bad huh?");
+        return;
     }
 
-    printf("Name (max 23 chars): ");
-    readstr(res->name, 24);
-
-    int style;
-    while (1)
-    {
-        printf("Style (1-3): ");
-        style = readint();
-        if (style >= 1 && style <= 3) break;
-        puts("Invalid style.");
-    }
-
-    if (style == 1) res->display = display1;
-    if (style == 2) res->display = display2;
-    if (style == 3) res->display = display3;
-
-    orgs[res->id] = res;
+    memset((char *) app.list[index].name, 0, NAME_MAX_LENGTH);  // Set name to NULL bytes
+    app.list[index].age = 0;
+    app.list[index].gender = 0;
+    app.list[index].height = 0;
+    app.list[index].weight = 0;
 }
 
-void delete_org()
-{
-    printf("ID (0-%d): ", CAPACITY-1);
-    int id = readint();
-    if (id < 0 || id >= CAPACITY) puts("Invalid ID");
-    else if (orgs[id] == 0)
-        printf("No org created with ID %d.\n", id);
-    else
-    {
-        free(orgs[id]);
-        printf("Deleted org %d.\n", id);
-    }
-}
+int main() {
+    setup();
 
-void print_card()
-{
-    int org_id;
-    while (1)
-    {
-        printf("Org ID (0-%d): ", CAPACITY-1);
-        org_id = readint();
-        if (org_id < 0 || org_id >= CAPACITY) puts("Invalid org ID");
-        else if (orgs[org_id] == 0)
-            printf("No org created with ID %d. Choose a different ID.\n", org_id);
-        else break;
-    }
+    show_menu();
 
-    int person_id;
-    while (1)
-    {
-        printf("Person ID (0-%d): ", CAPACITY-1);
-        person_id = readint();
-        if (person_id < 0 || person_id >= CAPACITY) puts("Invalid person ID");
-        else if (persons[person_id] == 0)
-            printf("No person created with ID %d. Choose a different ID.\n", org_id);
-        else break;
-    }
+    app.list = (struct Person *) malloc(sizeof(struct Person) * 20);
 
-    org *o = orgs[org_id];
-    person *p = persons[person_id];
+    strcpy(app.stats.logger, "echo \"-- total: %d, average BMI: %.2f --\" >> log.txt");
+    app.stats.total_bmi = 0;
+    app.stats.total_count = 0;
 
-    // printf("display func @ %p\n", o->display);
-    o->display(o, p);
-}
+    while(1) {
+        printf("\nChoose action: ");
+        int op = read_int();
 
-void reset()
-{
-    memset(persons, 0, sizeof(persons));
-    memset(orgs, 0, sizeof(orgs));
-}
-
-void setup_io()
-{
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stdin, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-}
-
-int main()
-{
-    // org* o1 = (org*)malloc(sizeof(org));
-    // person* p1 = (person*)malloc(sizeof(person));
-    // printf("o1: %p\n", o1);
-    // printf("p1: %p\n", p1);
-    // free(o1);
-    // person* p2 = (person*)malloc(sizeof(person));
-    // printf("p2: %p\n", p2);
-
-    reset();
-
-    setup_io();
-    puts(BANNER);
-    usage();
-
-    // printf("%d %d\n", sizeof(org), sizeof(person));
-
-    int opt;
-    do {
-        prompt();
-        opt = readint();
-
-        switch (opt)
-        {
-        case 1:
-            new_person();
+        if (op == 1) {
+            add_person();
+        } else if (op == 2) {
+            delete_person();
+        } else if (op == 3) {
+            select_person();
+            calculate_bmi();
+        } else if (op == 4) {
             break;
-        case 2:
-            new_org();
-            break;
-        case 3:
-            delete_org();
-            break;
-        case 4:
-            print_card();
-            break;
-        default:
-            break;
+        } else {
+            printf("What?\n");
         }
-    } while (opt != 5);
+    }
 
-    puts("Thanks for using this service. Please come again next time.");
+    char command[COMMAND_MAX_LENGTH];
+    snprintf(command, COMMAND_MAX_LENGTH, app.stats.logger,
+             app.stats.total_count, app.stats.total_bmi / app.stats.total_count);
 
-    return 0;
+    system(command);
+
+    exit(0);
+}
+
+void timeout() {
+    printf("Time's up :(\n");
+    exit(0);
+}
+
+void setup() {
+    setvbuf(stdin,  NULL, _IONBF, 0);   // Switch off I/O buffering
+    setvbuf(stdout, NULL, _IONBF, 0);   // Switch off I/O buffering
+    setvbuf(stderr, NULL, _IONBF, 0);   // Switch off I/O buffering
+
+    signal(SIGALRM, timeout);           // Set program to exit on timeout
+    alarm(60);                          // Exit program after 30s
 }
